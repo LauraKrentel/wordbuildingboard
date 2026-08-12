@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Word Building Board</title>
+<style>
+  :root {
+    --bg: #fdfaf3;
+    --card: #ffffff;
+    --ink: #2e2a24;
+    --border: #d8cfba;
+    --prefix: #2f6690;
+    --prefix-light: #dbe8f0;
+    --root: #7a5230;
+    --root-light: #ece0cf;
+    --suffix: #6b5b95;
+    --suffix-light: #e6e1f0;
+    --good: #3f6b52;
+    --good-light: #dbe9e0;
+    --bad: #c65b4e;
+    --bad-light: #f7dedb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: Georgia, 'Times New Roman', serif;
+    background: var(--bg);
+    color: var(--ink);
+    margin: 0;
+    padding: 24px;
+  }
+  h1 { text-align: center; font-size: 1.6em; margin-bottom: 2px; }
+  .subtitle { text-align: center; color: #6b6355; margin-bottom: 22px; font-size: 0.95em; }
+
+  .section { max-width: 1000px; margin: 0 auto 18px auto; }
+  .section h2 {
+    font-size: 0.95em;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0 0 8px 4px;
+  }
+  .section.prefixes h2 { color: var(--prefix); }
+  .section.roots h2 { color: var(--root); }
+  .section.suffixes h2 { color: var(--suffix); }
+
+  .tiles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 10px;
+  }
+  .section.prefixes .tiles { background: var(--prefix-light); }
+  .section.roots .tiles { background: var(--root-light); }
+  .section.suffixes .tiles { background: var(--suffix-light); }
+
+  .tile {
+    background: var(--card);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 1.05em;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.1s, border-color 0.15s;
+  }
+  .tile:hover { transform: translateY(-2px); }
+  .section.prefixes .tile:hover, .section.prefixes .tile.used { border-color: var(--prefix); }
+  .section.roots .tile:hover, .section.roots .tile.used { border-color: var(--root); }
+  .section.suffixes .tile:hover, .section.suffixes .tile.used { border-color: var(--suffix); }
+  .tile.used { opacity: 0.45; }
+
+  .build-area {
+    max-width: 1000px;
+    margin: 24px auto 8px auto;
+    background: var(--card);
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    text-align: center;
+  }
+  .build-strip {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    min-height: 54px;
+    align-items: center;
+    font-size: 1.8em;
+    letter-spacing: 0.5px;
+  }
+  .build-strip .piece {
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 2px 4px;
+  }
+  .build-strip .piece.prefix { color: var(--prefix); background: var(--prefix-light); }
+  .build-strip .piece.root { color: var(--root); background: var(--root-light); }
+  .build-strip .piece.suffix { color: var(--suffix); background: var(--suffix-light); }
+  .build-strip .placeholder { color: #b7ab93; font-size: 0.55em; }
+
+  .controls { margin-top: 14px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+  button {
+    font-family: inherit;
+    font-size: 1em;
+    background: var(--good);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    cursor: pointer;
+  }
+  button.secondary { background: #8a8272; }
+  button:hover { opacity: 0.9; }
+
+  .feedback {
+    max-width: 1000px;
+    margin: 18px auto 0 auto;
+    text-align: center;
+    min-height: 1.6em;
+    font-size: 1.15em;
+  }
+  .feedback.correct { color: var(--good); }
+  .feedback.incorrect { color: var(--bad); }
+  .breakdown { font-size: 0.7em; margin-top: 4px; color: #6b6355; }
+  .breakdown span { font-weight: bold; }
+  .breakdown .prefix { color: var(--prefix); }
+  .breakdown .root { color: var(--root); }
+  .breakdown .suffix { color: var(--suffix); }
+
+  .log {
+    max-width: 1000px;
+    margin: 24px auto 0 auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+  }
+  .log h3 { margin: 0 0 8px 0; font-size: 1em; }
+  .log-words { display: flex; flex-wrap: wrap; gap: 8px; }
+  .log-words .w { background: var(--good-light); color: var(--good); border-radius: 6px; padding: 4px 10px; font-size: 0.95em; }
+  .log-empty { color: #6b6355; font-style: italic; font-size: 0.9em; }
+</style>
+</head>
+<body>
+
+<h1>Word Building Board</h1>
+<div class="subtitle">Click a prefix, root/base, and/or suffix to add it to the word. Click a piece in the word to remove it. Click "Check Word" to see if it's real.</div>
+
+<div class="section prefixes">
+  <h2>Prefixes</h2>
+  <div class="tiles" id="tiles-prefix"></div>
+</div>
+
+<div class="section roots">
+  <h2>Roots &amp; Bases</h2>
+  <div class="tiles" id="tiles-root"></div>
+</div>
+
+<div class="section suffixes">
+  <h2>Suffixes</h2>
+  <div class="tiles" id="tiles-suffix"></div>
+</div>
+
+<div class="build-area">
+  <div class="build-strip" id="buildStrip"><span class="placeholder">click tiles above to build a word</span></div>
+  <div class="controls">
+    <button onclick="checkWord()">Check Word</button>
+    <button class="secondary" onclick="clearBuild()">Clear</button>
+  </div>
+</div>
+
+<div class="feedback" id="feedback"></div>
+
+<div class="log">
+  <h3>Real Words Built This Session</h3>
+  <div class="log-words" id="logWords"><span class="log-empty">None yet — build a word above to get started.</span></div>
+</div>
+
+<script>
+  const prefixes = ["de", "dis", "il", "im", "in", "ir", "mis", "non", "over", "pre", "pro", "sub", "trans"];
+  const roots = [
+    "act", "agree", "cap", "cape", "capt", "care", "child", "color",
+    "duce", "duct", "employ", "enjoy", "fear", "flect", "flex", "fool",
+    "form", "harm", "kind", "loyal", "move", "pay", "port", "real",
+    "royal", "sad", "safe", "scrib", "scribe", "script", "self", "struct",
+    "tract", "treat", "use", "vid", "vide", "vis", "vise"
+  ];
+  const suffixes = ["able", "ed", "er", "es", "est", "ible", "ing", "ion", "ire", "ish", "ity", "less", "ly", "ment", "ness", "s", "sion", "tion", "ture", "ty", "ure"];
+
+  const validWords = {
+    "form": { parts: ["form"], meaning: "a shape; to make" },
+    "transform": { parts: ["trans", "form"], meaning: "to change completely" },
+    "deform": { parts: ["de", "form"], meaning: "to bend out of shape" },
+    "inform": { parts: ["in", "form"], meaning: "to tell someone facts" },
+    "formless": { parts: ["form", "less"], meaning: "having no clear shape" },
+
+    "port": { parts: ["port"], meaning: "a place ships load/unload; to carry" },
+    "transport": { parts: ["trans", "port"], meaning: "to carry from one place to another" },
+    "deport": { parts: ["de", "port"], meaning: "to send someone out of a country" },
+    "import": { parts: ["im", "port"], meaning: "to bring goods in from another country" },
+    "portable": { parts: ["port", "able"], meaning: "able to be carried" },
+
+    "structure": { parts: ["struct", "ure"], meaning: "the way something is built" },
+    "instruct": { parts: ["in", "struct"], meaning: "to teach or direct someone" },
+    "instruction": { parts: ["in", "struct", "ion"], meaning: "a direction telling how to do something" },
+    "destruct": { parts: ["de", "struct"], meaning: "to destroy" },
+    "destruction": { parts: ["de", "struct", "ion"], meaning: "the act of destroying something" },
+
+    "tract": { parts: ["tract"], meaning: "a stretch of land; to pull" },
+    "distract": { parts: ["dis", "tract"], meaning: "to pull attention away" },
+    "distraction": { parts: ["dis", "tract", "ion"], meaning: "something that pulls your attention away" },
+    "subtract": { parts: ["sub", "tract"], meaning: "to take away (math)" },
+    "subtraction": { parts: ["sub", "tract", "ion"], meaning: "the act of taking away" },
+    "tractable": { parts: ["tract", "able"], meaning: "easy to manage or control" },
+
+    "act": { parts: ["act"], meaning: "to do something" },
+    "transact": { parts: ["trans", "act"], meaning: "to carry out business" },
+    "transaction": { parts: ["trans", "act", "ion"], meaning: "a business deal" },
+    "overact": { parts: ["over", "act"], meaning: "to act in an exaggerated way" },
+    "inaction": { parts: ["in", "act", "ion"], meaning: "doing nothing" },
+
+    "describe": { parts: ["de", "scribe"], meaning: "to tell what something is like" },
+    "description": { parts: ["de", "script", "ion"], meaning: "words that tell what something is like" },
+    "inscribe": { parts: ["in", "scribe"], meaning: "to write or carve words onto something" },
+    "inscription": { parts: ["in", "script", "ion"], meaning: "words carved or written on something" },
+    "prescribe": { parts: ["pre", "scribe"], meaning: "to say what treatment someone should have" },
+    "prescription": { parts: ["pre", "script", "ion"], meaning: "written directions for medicine" },
+    "subscribe": { parts: ["sub", "scribe"], meaning: "to sign up to receive something" },
+    "subscription": { parts: ["sub", "script", "ion"], meaning: "a plan you pay for and receive regularly" },
+    "subscript": { parts: ["sub", "script"], meaning: "a small letter/number written below the line" },
+
+    "flex": { parts: ["flex"], meaning: "to bend" },
+    "deflect": { parts: ["de", "flect"], meaning: "to make something bounce off in another direction" },
+    "deflection": { parts: ["de", "flect", "ion"], meaning: "a change in direction after bouncing off" },
+    "inflect": { parts: ["in", "flect"], meaning: "to change the tone or form of a word" },
+    "inflection": { parts: ["in", "flect", "ion"], meaning: "a change in a word's form or tone of voice" },
+    "flexible": { parts: ["flex", "ible"], meaning: "able to bend easily" },
+
+    "vision": { parts: ["vis", "ion"], meaning: "the ability to see; a picture in your mind" },
+    "visible": { parts: ["vis", "ible"], meaning: "able to be seen" },
+    "invisible": { parts: ["in", "vis", "ible"], meaning: "not able to be seen" },
+    "devise": { parts: ["de", "vise"], meaning: "to plan or invent something" },
+    "provision": { parts: ["pro", "vis", "ion"], meaning: "something supplied for future use" },
+
+    "induce": { parts: ["in", "duce"], meaning: "to lead someone to do something" },
+    "induction": { parts: ["in", "duct", "ion"], meaning: "the act of bringing someone into a group" },
+    "induct": { parts: ["in", "duct"], meaning: "to officially bring someone into a group" },
+    "deduce": { parts: ["de", "duce"], meaning: "to figure out using clues" },
+    "deduction": { parts: ["de", "duct", "ion"], meaning: "something figured out from clues; an amount subtracted" },
+    "deduct": { parts: ["de", "duct"], meaning: "to subtract" },
+    "produce": { parts: ["pro", "duce"], meaning: "to make or create" },
+    "production": { parts: ["pro", "duct", "ion"], meaning: "the act of making something" },
+    "product": { parts: ["pro", "duct"], meaning: "something that is made" },
+
+    "capture": { parts: ["cap", "ture"], meaning: "to catch and hold" },
+    "capable": { parts: ["cap", "able"], meaning: "able to do something" },
+    "incapable": { parts: ["in", "cap", "able"], meaning: "not able to do something" },
+    "caption": { parts: ["capt", "ion"], meaning: "words under a picture that explain it" },
+
+    "kindness": { parts: ["kind", "ness"], meaning: "the state of being kind" },
+    "sadness": { parts: ["sad", "ness"], meaning: "the state of being sad" },
+    "payment": { parts: ["pay", "ment"], meaning: "the result of paying" },
+    "agreement": { parts: ["agree", "ment"], meaning: "the result of agreeing" },
+    "treatment": { parts: ["treat", "ment"], meaning: "the way someone or something is treated" },
+    "employment": { parts: ["employ", "ment"], meaning: "the state of having a job" },
+    "movement": { parts: ["move", "ment"], meaning: "the act or result of moving" },
+    "enjoyment": { parts: ["enjoy", "ment"], meaning: "the state of enjoying something" },
+    "fearless": { parts: ["fear", "less"], meaning: "without fear" },
+    "careless": { parts: ["care", "less"], meaning: "without care" },
+    "harmless": { parts: ["harm", "less"], meaning: "without the ability to cause harm" },
+    "useless": { parts: ["use", "less"], meaning: "without use; not helpful" },
+    "colorless": { parts: ["color", "less"], meaning: "without color" },
+    "childish": { parts: ["child", "ish"], meaning: "somewhat like a child" },
+    "selfish": { parts: ["self", "ish"], meaning: "caring mostly about yourself" },
+    "foolish": { parts: ["fool", "ish"], meaning: "somewhat like a fool; unwise" },
+    "safety": { parts: ["safe", "ty"], meaning: "the state of being safe" },
+    "reality": { parts: ["real", "ity"], meaning: "the state of being real" },
+    "royalty": { parts: ["royal", "ty"], meaning: "the state of being royal" },
+    "loyalty": { parts: ["loyal", "ty"], meaning: "the state of being loyal" },
+
+    "disagree": { parts: ["dis", "agree"], meaning: "to not agree" },
+    "disagreement": { parts: ["dis", "agree", "ment"], meaning: "a situation where people don't agree" },
+    "misuse": { parts: ["mis", "use"], meaning: "to use something the wrong way" },
+    "mistreat": { parts: ["mis", "treat"], meaning: "to treat someone badly" },
+    "overuse": { parts: ["over", "use"], meaning: "to use too much" },
+    "disable": { parts: ["dis", "able"], meaning: "to make something unable to work" },
+
+    "forms": { parts: ["form", "s"], meaning: "more than one shape" },
+    "ports": { parts: ["port", "s"], meaning: "more than one port" },
+    "acts": { parts: ["act", "s"], meaning: "more than one act; does" },
+    "tracts": { parts: ["tract", "s"], meaning: "more than one tract" },
+    "employs": { parts: ["employ", "s"], meaning: "gives someone a job" },
+    "enjoys": { parts: ["enjoy", "s"], meaning: "likes something" },
+    "fears": { parts: ["fear", "s"], meaning: "is afraid of; more than one fear" },
+    "cares": { parts: ["care", "s"], meaning: "looks after; is concerned" },
+    "moves": { parts: ["move", "s"], meaning: "changes position" },
+    "uses": { parts: ["use", "s"], meaning: "puts something to work" },
+    "colors": { parts: ["color", "s"], meaning: "more than one color" },
+    "fools": { parts: ["fool", "s"], meaning: "tricks someone; more than one fool" },
+    "treats": { parts: ["treat", "s"], meaning: "handles something a certain way" },
+    "pays": { parts: ["pay", "s"], meaning: "gives money for something" },
+    "harms": { parts: ["harm", "s"], meaning: "hurts someone" },
+    "kinds": { parts: ["kind", "s"], meaning: "more than one type" },
+    "caps": { parts: ["cap", "s"], meaning: "more than one cap" },
+    "capes": { parts: ["cape", "s"], meaning: "more than one cape" },
+    "visions": { parts: ["vis", "ion", "s"], meaning: "more than one vision" },
+    "distracts": { parts: ["dis", "tract", "s"], meaning: "pulls attention away" },
+    "subtracts": { parts: ["sub", "tract", "s"], meaning: "takes away (math)" },
+    "transacts": { parts: ["trans", "act", "s"], meaning: "carries out business" },
+    "instructs": { parts: ["in", "struct", "s"], meaning: "teaches or directs" },
+    "transports": { parts: ["trans", "port", "s"], meaning: "carries from place to place" },
+    "informs": { parts: ["in", "form", "s"], meaning: "tells someone facts" },
+    "transforms": { parts: ["trans", "form", "s"], meaning: "changes completely" },
+    "deforms": { parts: ["de", "form", "s"], meaning: "bends out of shape" },
+    "imports": { parts: ["im", "port", "s"], meaning: "brings goods in" },
+    "deports": { parts: ["de", "port", "s"], meaning: "sends someone out of a country" },
+    "describes": { parts: ["de", "scribe", "s"], meaning: "tells what something is like" },
+    "devises": { parts: ["de", "vise", "s"], meaning: "plans or invents" },
+    "produces": { parts: ["pro", "duce", "s"], meaning: "makes or creates" },
+    "induces": { parts: ["in", "duce", "s"], meaning: "leads someone to do something" },
+    "deduces": { parts: ["de", "duce", "s"], meaning: "figures out using clues" },
+    "captures": { parts: ["cap", "ture", "s"], meaning: "catches and holds" },
+    "prescribes": { parts: ["pre", "scribe", "s"], meaning: "says what treatment to have" },
+    "subscribes": { parts: ["sub", "scribe", "s"], meaning: "signs up to receive something" },
+    "inscribes": { parts: ["in", "scribe", "s"], meaning: "writes or carves words on something" },
+
+    "flexes": { parts: ["flex", "es"], meaning: "bends; tightens a muscle" },
+
+    "formed": { parts: ["form", "ed"], meaning: "made or shaped" },
+    "ported": { parts: ["port", "ed"], meaning: "moved from one place/system to another" },
+    "acted": { parts: ["act", "ed"], meaning: "did something" },
+    "treated": { parts: ["treat", "ed"], meaning: "handled a certain way" },
+    "employed": { parts: ["employ", "ed"], meaning: "given a job" },
+    "enjoyed": { parts: ["enjoy", "ed"], meaning: "liked something" },
+    "feared": { parts: ["fear", "ed"], meaning: "was afraid of" },
+    "harmed": { parts: ["harm", "ed"], meaning: "hurt" },
+    "colored": { parts: ["color", "ed"], meaning: "added color to" },
+    "fooled": { parts: ["fool", "ed"], meaning: "tricked" },
+    "scripted": { parts: ["script", "ed"], meaning: "wrote out ahead of time" },
+    "flexed": { parts: ["flex", "ed"], meaning: "bent; tightened a muscle" },
+    "deformed": { parts: ["de", "form", "ed"], meaning: "bent out of shape" },
+    "transformed": { parts: ["trans", "form", "ed"], meaning: "changed completely" },
+    "informed": { parts: ["in", "form", "ed"], meaning: "told someone facts" },
+    "transported": { parts: ["trans", "port", "ed"], meaning: "carried from place to place" },
+    "deported": { parts: ["de", "port", "ed"], meaning: "sent out of a country" },
+    "imported": { parts: ["im", "port", "ed"], meaning: "brought goods in" },
+    "instructed": { parts: ["in", "struct", "ed"], meaning: "taught or directed" },
+    "distracted": { parts: ["dis", "tract", "ed"], meaning: "had attention pulled away" },
+    "subtracted": { parts: ["sub", "tract", "ed"], meaning: "took away (math)" },
+    "transacted": { parts: ["trans", "act", "ed"], meaning: "carried out business" },
+    "overacted": { parts: ["over", "act", "ed"], meaning: "acted in an exaggerated way" },
+    "deflected": { parts: ["de", "flect", "ed"], meaning: "bounced off in another direction" },
+    "inflected": { parts: ["in", "flect", "ed"], meaning: "changed in tone or form" },
+    "provisioned": { parts: ["pro", "vis", "ion", "ed"], meaning: "supplied for future use" },
+    "inducted": { parts: ["in", "duct", "ed"], meaning: "officially brought into a group" },
+    "deducted": { parts: ["de", "duct", "ed"], meaning: "subtracted" },
+    "mistreated": { parts: ["mis", "treat", "ed"], meaning: "treated badly" },
+
+    "forming": { parts: ["form", "ing"], meaning: "making or shaping" },
+    "porting": { parts: ["port", "ing"], meaning: "moving to a new place/system" },
+    "acting": { parts: ["act", "ing"], meaning: "doing something" },
+    "treating": { parts: ["treat", "ing"], meaning: "handling a certain way" },
+    "employing": { parts: ["employ", "ing"], meaning: "giving someone a job" },
+    "enjoying": { parts: ["enjoy", "ing"], meaning: "liking something" },
+    "fearing": { parts: ["fear", "ing"], meaning: "being afraid of" },
+    "harming": { parts: ["harm", "ing"], meaning: "hurting" },
+    "coloring": { parts: ["color", "ing"], meaning: "adding color" },
+    "fooling": { parts: ["fool", "ing"], meaning: "tricking" },
+    "scripting": { parts: ["script", "ing"], meaning: "writing out ahead of time" },
+    "flexing": { parts: ["flex", "ing"], meaning: "bending; tightening a muscle" },
+    "paying": { parts: ["pay", "ing"], meaning: "giving money for something" },
+    "agreeing": { parts: ["agree", "ing"], meaning: "having the same opinion" },
+    "disagreeing": { parts: ["dis", "agree", "ing"], meaning: "not having the same opinion" },
+    "transforming": { parts: ["trans", "form", "ing"], meaning: "changing completely" },
+    "informing": { parts: ["in", "form", "ing"], meaning: "telling someone facts" },
+    "transporting": { parts: ["trans", "port", "ing"], meaning: "carrying from place to place" },
+    "deporting": { parts: ["de", "port", "ing"], meaning: "sending out of a country" },
+    "importing": { parts: ["im", "port", "ing"], meaning: "bringing goods in" },
+    "instructing": { parts: ["in", "struct", "ing"], meaning: "teaching or directing" },
+    "distracting": { parts: ["dis", "tract", "ing"], meaning: "pulling attention away" },
+    "subtracting": { parts: ["sub", "tract", "ing"], meaning: "taking away (math)" },
+    "transacting": { parts: ["trans", "act", "ing"], meaning: "carrying out business" },
+    "overacting": { parts: ["over", "act", "ing"], meaning: "acting in an exaggerated way" },
+    "deflecting": { parts: ["de", "flect", "ing"], meaning: "bouncing off in another direction" },
+    "inflecting": { parts: ["in", "flect", "ing"], meaning: "changing in tone or form" },
+    "provisioning": { parts: ["pro", "vis", "ion", "ing"], meaning: "supplying for future use" },
+    "inducting": { parts: ["in", "duct", "ing"], meaning: "officially bringing into a group" },
+    "deducting": { parts: ["de", "duct", "ing"], meaning: "subtracting" },
+    "mistreating": { parts: ["mis", "treat", "ing"], meaning: "treating badly" },
+
+    "sadly": { parts: ["sad", "ly"], meaning: "in a sad way" },
+    "safely": { parts: ["safe", "ly"], meaning: "in a safe way" },
+    "royally": { parts: ["royal", "ly"], meaning: "in a royal way" },
+    "loyally": { parts: ["loyal", "ly"], meaning: "in a loyal way" },
+    "fearlessly": { parts: ["fear", "less", "ly"], meaning: "without any fear" },
+    "harmlessly": { parts: ["harm", "less", "ly"], meaning: "in a way that causes no harm" },
+    "carelessly": { parts: ["care", "less", "ly"], meaning: "without paying attention" },
+    "uselessly": { parts: ["use", "less", "ly"], meaning: "in a way that doesn't help" },
+    "foolishly": { parts: ["fool", "ish", "ly"], meaning: "in an unwise way" },
+    "childishly": { parts: ["child", "ish", "ly"], meaning: "in an immature way" },
+    "selfishly": { parts: ["self", "ish", "ly"], meaning: "caring mostly about yourself" },
+
+    "former": { parts: ["form", "er"], meaning: "earlier; previous" },
+    "porter": { parts: ["port", "er"], meaning: "someone who carries luggage" },
+    "employer": { parts: ["employ", "er"], meaning: "a person or company that gives jobs" },
+    "payer": { parts: ["pay", "er"], meaning: "someone who pays" },
+    "kinder": { parts: ["kind", "er"], meaning: "more kind" },
+
+    "kindest": { parts: ["kind", "est"], meaning: "most kind" }
+  };
+
+  let build = [];
+
+  function makeTiles(containerId, list, category) {
+    const container = document.getElementById(containerId);
+    list.forEach(val => {
+      const el = document.createElement('div');
+      el.className = 'tile';
+      el.textContent = category === 'prefix' ? val + '-' : (category === 'suffix' ? '-' + val : val);
+      el.onclick = () => addPiece(val, category);
+      container.appendChild(el);
+    });
+  }
+  makeTiles('tiles-prefix', prefixes, 'prefix');
+  makeTiles('tiles-root', roots, 'root');
+  makeTiles('tiles-suffix', suffixes, 'suffix');
+
+  function addPiece(val, category) {
+    build.push({ val, category });
+    renderBuild();
+  }
+
+  function removePiece(index) {
+    build.splice(index, 1);
+    renderBuild();
+  }
+
+  function renderBuild() {
+    const strip = document.getElementById('buildStrip');
+    strip.innerHTML = '';
+    if (build.length === 0) {
+      strip.innerHTML = '<span class="placeholder">click tiles above to build a word</span>';
+    } else {
+      build.forEach((p, i) => {
+        const span = document.createElement('span');
+        span.className = 'piece ' + p.category;
+        span.textContent = p.val;
+        span.onclick = () => removePiece(i);
+        strip.appendChild(span);
+      });
+    }
+    document.getElementById('feedback').textContent = '';
+    document.getElementById('feedback').className = 'feedback';
+  }
+
+  function clearBuild() {
+    build = [];
+    renderBuild();
+  }
+
+  function checkWord() {
+    const feedback = document.getElementById('feedback');
+    if (build.length === 0) return;
+    const word = build.map(p => p.val).join('');
+    const entry = validWords[word];
+    if (entry) {
+      feedback.className = 'feedback correct';
+      const breakdownHtml = build.map(p => '<span class="' + p.category + '">' + p.val + '</span>').join(' + ');
+      feedback.innerHTML = '✓ "' + word + '" is a real word! — ' + entry.meaning +
+        '<div class="breakdown">' + breakdownHtml + '</div>';
+      addToLog(word);
+    } else {
+      feedback.className = 'feedback incorrect';
+      feedback.textContent = '"' + word + '" isn\'t in the word list — try a different combination.';
+    }
+  }
+
+  const builtWords = new Set();
+  function addToLog(word) {
+    if (builtWords.has(word)) return;
+    builtWords.add(word);
+    const logDiv = document.getElementById('logWords');
+    if (builtWords.size === 1) logDiv.innerHTML = '';
+    const span = document.createElement('span');
+    span.className = 'w';
+    span.textContent = word;
+    logDiv.appendChild(span);
+  }
+</script>
+</body>
+</html>
